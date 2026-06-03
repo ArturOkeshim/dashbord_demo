@@ -5,12 +5,13 @@ from pathlib import Path
 
 import pandas as pd
 
-REQUIRED_COLUMNS = {"line", "obj", "item", "date", "debet"}
-DEFAULT_REPORT = Path(__file__).resolve().parent / "report_for_web.xlsx"
+REQUIRED_COLUMNS = {"line", "obj", "item", "date", "debet", "credit"}
+DEFAULT_REPORT = Path(__file__).resolve().parent / "report_for_web2.xlsx"
 KNOWN_LINES = ("50.01", "50.02", "51")
 
 
-def _normalize_line(value) -> str:
+def _normalize_cell(value) -> str:
+    """Приводит ячейку Excel к строке (счета, obj, item)."""
     if pd.isna(value):
         return ""
     if isinstance(value, float):
@@ -18,6 +19,8 @@ def _normalize_line(value) -> str:
             return str(int(value))
         return format(value, "g")
     text = str(value).strip()
+    if text.lower() in ("nan", "none"):
+        return ""
     if text.endswith(".0") and text[:-2].replace(".", "", 1).isdigit():
         return text[:-2]
     return text
@@ -43,11 +46,12 @@ def load_turnover(path: Path | str = DEFAULT_REPORT) -> pd.DataFrame:
     frame = pd.read_excel(path, sheet_name=sheet)
 
     frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
-    frame["debet"] = pd.to_numeric(frame["debet"], errors="coerce")
-    frame["line"] = frame["line"].map(_normalize_line)
-    frame["obj"] = frame["obj"].astype(str).str.strip()
-    frame["item"] = frame["item"].astype(str).str.strip()
+    frame["debet"] = pd.to_numeric(frame["debet"], errors="coerce").fillna(0)
+    frame["credit"] = pd.to_numeric(frame["credit"], errors = "coerce").fillna(0)
+    frame["amount"] = frame["debet"] - frame["credit"]
+    frame["line"] = frame["line"].map(_normalize_cell)
+    frame["obj"] = frame["obj"].map(_normalize_cell)
+    frame["item"] = frame["item"].map(_normalize_cell)
 
-    frame = frame.dropna(subset=["date", "debet"])
-    frame = frame[frame["debet"] > 0]
+    frame = frame.dropna(subset=["date"])
     return frame.reset_index(drop=True)

@@ -1,3 +1,4 @@
+from tabnanny import check
 import pandas as pd
 from pathlib import Path
 
@@ -10,7 +11,7 @@ def main(filename):
     extracted_data = []
     obj = ""
     line = ""
-    list_of_lines = ["50.01","50.02","51"]
+    list_of_lines = ["50.01","50.02","51","57.01","57.03"]
     list_of_obj = ["МПЦ"]
     for row in range(num_rows):
         
@@ -48,6 +49,7 @@ def main(filename):
             date_str = cell_text.replace("Обороты за","").strip()
             date = pd.to_datetime(date_str, format="%d.%m.%y", errors="coerce")
 
+            corresponding_line = data.iloc[row+1,1]
             debet =  data.iloc[row+1,2]
             credit = data.iloc[row+1,3]
 
@@ -55,10 +57,34 @@ def main(filename):
                 "line":line,
                 "obj":obj,
                 "item":item,
+                "corresponding_line":corresponding_line,
                 "date":date,
                 "debet":debet,
                 "credit":credit,
             })
+
+            multiple_rows_index = 0
+            check_cell = str(data.iloc[row+2,1])
+
+            while "Оборот" not in check_cell:
+            
+                if check_cell in ["50","62","51","91"]:
+
+                    corresponding_line = check_cell
+                    debet =  data.iloc[row+2+multiple_rows_index,2]
+                    credit = data.iloc[row+2+multiple_rows_index,3]
+                    extracted_data.append({
+                        "line":line,
+                        "obj":obj,
+                        "item":item,
+                        "corresponding_line":corresponding_line,
+                        "date":date,
+                        "debet":debet,
+                        "credit":credit,
+                    })
+
+                multiple_rows_index +=1
+                check_cell = str(data.iloc[row+2+multiple_rows_index,1])
 
     return extracted_data, start_data
 
@@ -69,7 +95,7 @@ if __name__ == "__main__":
 
     all_turnover = []
     all_start = []
-    filenames = ["50_МПЦ.xls","51_МПЦ.xls"]
+    filenames = ["50_МПЦ.xls","51_МПЦ.xls","57_МПЦ.xls"]
 
     for filename in filenames:
         turnover, start = main(filename=filename)
@@ -79,6 +105,6 @@ if __name__ == "__main__":
     df_turnover = pd.DataFrame(all_turnover)
     df_start = pd.DataFrame(all_start)
 
-    with pd.ExcelWriter("report.xlsx", engine="openpyxl") as writer:
+    with pd.ExcelWriter("report3.xlsx", engine="openpyxl") as writer:
         df_turnover.to_excel(writer, sheet_name="Оборот", index=False)
         df_start.to_excel(writer, sheet_name="Начальное сальдо", index=False)

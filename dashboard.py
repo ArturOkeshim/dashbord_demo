@@ -58,9 +58,9 @@ def account_lines(df: pd.DataFrame) -> list[str]:
 
 def item_ranking(df: pd.DataFrame) -> list[str]:
     totals = (
-        df.groupby("item", as_index=False)["debet"]
+        df.groupby("item", as_index=False)["amount"]
         .sum()
-        .sort_values("debet", ascending=False)
+        .sort_values("amount", ascending=False)
     )
     return totals["item"].tolist()
 
@@ -68,11 +68,11 @@ def item_ranking(df: pd.DataFrame) -> list[str]:
 def apply_top_items(
     grouped: pd.DataFrame, top_n: int, show_other: bool
 ) -> pd.DataFrame:
-    totals = grouped.groupby("item")["debet"].sum().sort_values(ascending=False)
+    totals = grouped.groupby("item")["amount"].sum().sort_values(ascending=False)
     keep = set(totals.head(top_n).index)
     out = grouped.copy()
     out["series"] = out["item"].where(out["item"].isin(keep), "Прочее")
-    out = out.groupby(["period", "series"], as_index=False)["debet"].sum()
+    out = out.groupby(["period", "series"], as_index=False)["amount"].sum()
     if not show_other:
         out = out[out["series"] != "Прочее"]
     return out
@@ -92,27 +92,27 @@ def build_chart(
         fig = px.bar(
             data,
             x="period",
-            y="debet",
+            y="amount",
             color="series",
             barmode=cfg["barmode"],
-            labels={"period": period_label, "debet": "Доход", "series": "Статья"},
+            labels={"period": period_label, "amount": "Доход", "series": "Статья"},
         )
     elif cfg["kind"] == "line":
         fig = px.line(
             data,
             x="period",
-            y="debet",
+            y="amount",
             color="series",
             markers=True,
-            labels={"period": period_label, "debet": "Доход", "series": "Статья"},
+            labels={"period": period_label, "amount": "Доход", "series": "Статья"},
         )
     else:
         fig = px.area(
             data,
             x="period",
-            y="debet",
+            y="amount",
             color="series",
-            labels={"period": period_label, "debet": "Доход", "series": "Статья"},
+            labels={"period": period_label, "amount": "Доход", "series": "Статья"},
         )
 
     y_title = "Доход, ₽"
@@ -166,14 +166,11 @@ def main() -> None:
 
     st.title("Динамика поступлений")
     st.caption(
-        "Только дебет (доход). Цвета — доли по статьям (item). "
+        "Доход. Цвета — доли по статьям (item). "
         "Счета и объекты — в фильтрах."
     )
 
-    report_path = st.sidebar.text_input(
-        "Файл данных",
-        value=str(DEFAULT_REPORT),
-    )
+    report_path = str(DEFAULT_REPORT)
 
     try:
         raw = get_data(report_path)
@@ -185,7 +182,7 @@ def main() -> None:
         st.stop()
 
     if raw.empty:
-        st.warning("После фильтрации пустых debet данных нет.")
+        st.warning("После фильтрации пустых amount данных нет.")
         st.stop()
 
     min_date = raw["date"].min().date()
@@ -216,7 +213,10 @@ def main() -> None:
         default=all_lines,
     )
 
-    all_objs = sorted(raw["obj"].unique())
+    all_objs = sorted(
+        {o for o in raw["obj"].unique() if o},
+        key=str,
+    )
     selected_objs = st.sidebar.multiselect(
         "Объекты (obj)",
         options=all_objs,
@@ -269,13 +269,13 @@ def main() -> None:
         filtered = filtered.assign(period=filtered["date"].dt.normalize())
 
     grouped = (
-        filtered.groupby(["period", "item"], as_index=False)["debet"]
+        filtered.groupby(["period", "item"], as_index=False)["amount"]
         .sum()
         .sort_values("period")
     )
     chart_data = apply_top_items(grouped, int(top_n), show_other)
 
-    total_income = filtered["debet"].sum()
+    total_income = filtered["amount"].sum()
     periods_count = chart_data["period"].nunique()
 
     m1, m2, m3 = st.columns(3)
@@ -289,7 +289,7 @@ def main() -> None:
 
     with st.expander("Данные графика"):
         st.dataframe(
-            chart_data.sort_values(["period", "debet"], ascending=[True, False]),
+            chart_data.sort_values(["period", "amount"], ascending=[True, False]),
             use_container_width=True,
         )
 
